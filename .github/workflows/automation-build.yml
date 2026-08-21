@@ -1,0 +1,32 @@
+name: Automation fresh Android build
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Build debug APKs
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+          mapfile -t apks < <(find . -path '*/build/outputs/apk/*' -type f -name '*.apk' -size +0c -print)
+          ((${#apks[@]} > 0)) || { echo 'No APK generated' >&2; exit 1; }
+          printf '%s\n' "${apks[@]}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ever-call-recorder-fresh-${{ github.sha }}
+          path: '**/build/outputs/apk/**/*.apk'
+          if-no-files-found: error
+          retention-days: 14
